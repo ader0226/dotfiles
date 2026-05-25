@@ -22,6 +22,7 @@ chezmoi default: `~/.local/share/chezmoi` (no custom `--source` needed)
 
 ```
 ~/.local/share/chezmoi/
+├── .chezmoi.toml.tmpl        # minimal config skeleton with [data] placeholder
 ├── dot_zshrc.tmpl            # template — handles Linux/macOS path differences
 ├── dot_p10k.zsh              # plain file
 ├── dot_tokyonight.zsh        # plain file
@@ -30,7 +31,16 @@ chezmoi default: `~/.local/share/chezmoi` (no custom `--source` needed)
 └── README.md                 # updated deployment instructions
 ```
 
-`.chezmoi.toml.tmpl` is omitted — chezmoi auto-detects OS, no user prompts needed.
+### `.chezmoi.toml.tmpl` (minimal skeleton)
+
+```toml
+[data]
+    # placeholder for future use
+    # email = "your@email.com"
+    # machine = "work"
+```
+
+`.chezmoi.toml.tmpl` is included as a minimal skeleton. No user prompts are needed now, but the `[data]` section makes it easy to add variables later (e.g., email, GPG key, machine alias) without restructuring. This is especially important if `.gitconfig` is added to management later — it will almost certainly need template data.
 
 ---
 
@@ -51,12 +61,19 @@ Insert before `export ZSH=...` to initialize Homebrew on macOS only.
 The `run_once_install-deps.sh` script also uses OS detection to pick the right package manager when installing zsh plugins and themes:
 
 ```bash
+#!/bin/bash
 if [[ "$(uname)" == "Darwin" ]]; then
   # macOS: use brew or manual clone
 else
   # Linux/WSL: manual clone only
 fi
 ```
+
+### `run_once_install-deps.sh` — important behaviors
+
+- **Must have `#!/bin/bash` shebang** and the executable bit set (`chmod +x`). chezmoi will refuse to run it otherwise.
+- **Hash-based re-run:** chezmoi tracks whether the script has run by hashing its content. If the script is modified later, chezmoi will run it again. All operations inside must be **idempotent** — use `[[ -d "$dest" ]] || git clone ...` style guards to avoid re-cloning existing directories.
+- **Naming:** The `run_once_` prefix is what triggers the one-time behavior. Do not use `run_` (which runs every `apply`) unless that is the intent.
 
 ---
 
@@ -66,10 +83,12 @@ fi
 2. `chezmoi init` — creates `~/.local/share/chezmoi`
 3. `chezmoi add ~/.zshrc ~/.p10k.zsh ~/.tokyonight.zsh ~/.tmux.conf` — copies files with `dot_` prefix
 4. Rename `dot_zshrc` → `dot_zshrc.tmpl` and add template blocks
-5. Create `run_once_install-deps.sh` (replaces `install.sh` logic)
-6. `chezmoi cd` → `git remote set-url origin https://github.com/ader0226/dotfiles`
-7. `chezmoi apply` — verify all files apply correctly
-8. Push to GitHub; remove old `~/dotfiles` symlinks
+5. Create `run_once_install-deps.sh` (replaces `install.sh` logic); ensure `chmod +x`
+6. Create `.chezmoi.toml.tmpl` with minimal `[data]` skeleton
+7. `chezmoi cd` → `git remote set-url origin https://github.com/ader0226/dotfiles`
+8. **`chezmoi diff`** — review what chezmoi will write; confirm it matches existing files before touching anything
+9. `chezmoi apply` — apply files to `$HOME`
+10. Push to GitHub; remove old `~/dotfiles` symlinks
 
 ---
 
